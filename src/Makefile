@@ -1,26 +1,27 @@
-# An admittedly primitive Makefile
-# To compile, type "make" or make "all"
-# To remove files, type "make clean"
-
+# Compiler and flags
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -pthread
+LDFLAGS = -pthread
 OBJS = wserver.o wclient.o request.o io_helper.o bounded_buffer.o
 
-.SUFFIXES: .c .o
-
+# Targets
 all: wserver wclient spin.cgi
 
 wserver: wserver.o request.o io_helper.o bounded_buffer.o
-	$(CC) $(CFLAGS) -o wserver wserver.o request.o io_helper.o bounded_buffer.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 wclient: wclient.o io_helper.o
-	$(CC) $(CFLAGS) -o wclient wclient.o io_helper.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
 spin.cgi: spin.c
-	$(CC) $(CFLAGS) -o spin.cgi spin.c
+	$(CC) $(CFLAGS) -o $@ $<
 
-.c.o:
-	$(CC) $(CFLAGS) -o $@ -c $<
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	-rm -f $(OBJS) wserver wclient spin.cgi
+	-rm -f *.o wserver wclient spin.cgi
+
+debug: CFLAGS += -g -DDEBUG
+debug: clean all
+	@echo "Built everything with debug symbols"

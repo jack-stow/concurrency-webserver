@@ -2,6 +2,7 @@
 #include "request.h"
 #include "io_helper.h"
 #include "bounded_buffer.h"
+#include "request_info.h"
 
 char default_root[] = ".";
 
@@ -95,9 +96,13 @@ int main(int argc, char *argv[]) {
 		printf("Accepted connection %d\n", conn_fd);
 
 		struct stat sbuf;
-		int fs = request_get_file_size(conn_fd);
-		printf("File size: %d\n", fs);
-		request_handle(conn_fd);
+		request_info_t req;
+		int success = request_get_info(conn_fd, &req);
+		// if successful, handle request.
+		if (success == 0) {
+			printf("File size: %d\n", req.sbuf.st_size);
+			request_handle(&req);
+		}
 		close_or_die(conn_fd);
     }
     return 0;

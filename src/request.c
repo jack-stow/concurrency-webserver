@@ -1,6 +1,7 @@
 #include "io_helper.h"
 #include "request.h"
 #include "common.h"
+#include "request_info.h"
 //
 // Some of this code stolen from Bryant/O'Halloran
 // Hopefully this is not a problem ... :)
@@ -141,8 +142,8 @@ void request_serve_static(int fd, char *filename, int filesize) {
     munmap_or_die(srcp, filesize);
 }
 
-// get file size
-int request_get_file_size(int fd){
+// prepare request for handling
+int request_get_info(int fd, request_info_t *request_info_out){
 	int is_static;
     struct stat sbuf;
     char buf[MAXBUF], method[MAXBUF], uri[MAXBUF], version[MAXBUF];
@@ -163,44 +164,31 @@ int request_get_file_size(int fd){
 		request_error(fd, filename, "404", "Not found", "server could not find this file");
 		return -1;
     }
-    return sbuf.st_size;
 
+    request_info_out->fd = fd;
+    request_info_out->sbuf = sbuf;
+    request_info_out->is_static = is_static;
+	strcpy(request_info_out->method, method);
+	strcpy(request_info_out->uri, uri);
+	strcpy(request_info_out->version, version);
+	strcpy(request_info_out->filename, filename);
+	strcpy(request_info_out->cgiargs, cgiargs);
+	return 0;
 }
 
 // handle a request
-void request_handle(int fd) {
-    int is_static;
-    struct stat sbuf;
-    char buf[MAXBUF], method[MAXBUF], uri[MAXBUF], version[MAXBUF];
-    char filename[MAXBUF], cgiargs[MAXBUF];
-
-    readline_or_die(fd, buf, MAXBUF);
-    sscanf(buf, "%s %s %s", method, uri, version);
-    printf("method:%s uri:%s version:%s\n", method, uri, version);
-
-    if (strcasecmp(method, "GET")) {
-	request_error(fd, method, "501", "Not Implemented", "server does not implement this method");
-	return;
-    }
-    request_read_headers(fd);
-
-    is_static = request_parse_uri(uri, filename, cgiargs);
-    if (stat(filename, &sbuf) < 0) {
-	request_error(fd, filename, "404", "Not found", "server could not find this file");
-	return;
-    }
-
-    if (is_static) {
-	if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) {
-	    request_error(fd, filename, "403", "Forbidden", "server could not read this file");
-	    return;
-	}
-	request_serve_static(fd, filename, sbuf.st_size);
+void request_handle(request_info_t *r) { // int fd
+    if (r->is_static) {
+		if (!(S_ISREG(r->sbuf.st_mode)) || !(S_IRUSR & r->sbuf.st_mode)) {
+	    	request_error(r->fd, r->filename, "403", "Forbidden", "server could not read this file");
+	    	return;
+		}
+		request_serve_static(r->fd, r->filename, r->sbuf.st_size);
     } else {
-	if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
-	    request_error(fd, filename, "403", "Forbidden", "server could not run this CGI program");
-	    return;
-	}
-	request_serve_dynamic(fd, filename, cgiargs);
+		if (!(S_ISREG(r->sbuf.st_mode)) || !(S_IXUSR & r->sbuf.st_mode)) {
+	    	request_error(r->fd, r->filename, "403", "Forbidden", "server could not run this CGI program");
+	    	return;
+		}
+		request_serve_dynamic(r->fd, r->filename, r->cgiargs);
     }
 }
