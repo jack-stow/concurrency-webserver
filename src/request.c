@@ -181,36 +181,36 @@ int request_get_info(int fd, request_info_t *request_info_out){ //, const char *
 
 	// determine filename and CGI args
     is_static = request_parse_uri(uri, filename, cgiargs);
-    printf("[DEBUG] URI from client: '%s'\n", uri);
-    printf("[DEBUG] Filename after request_parse_uri: '%s'\n", filename);
+    //printf("[DEBUG] URI from client: '%s'\n", uri);
+    //printf("[DEBUG] Filename after request_parse_uri: '%s'\n", filename);
 
 	// Make sure file is inside root_dir
 	char abs_root[MAXBUF];
 	if (getcwd(abs_root, MAXBUF) == NULL) {
-		printf("[DEBUG] cwd - abs_root = '%s'\n", abs_root);
+		//printf("[DEBUG] cwd - abs_root = '%s'\n", abs_root);
 		perror("getcwd");
 		return -1;
 	}
-	printf("[DEBUG] Absolute abs_root: '%s'\n", abs_root);
+	//printf("[DEBUG] Absolute abs_root: '%s'\n", abs_root);
 
 	// Construct full path and canonicalize
 	char fullpath[MAXBUF];
 	snprintf(fullpath, MAXBUF, "%s/%s", abs_root, filename);
-	printf("[DEBUG] **Fullpath (root_dir + filename): '%s'\n", fullpath);
+	//printf("[DEBUG] **Fullpath (root_dir + filename): '%s'\n", fullpath);
 
 	// Canonicalize requested file
 	char resolved[MAXBUF];
 	if (realpath(fullpath, resolved) == NULL) {
 		perror("realpath");
-		printf("[DEBUG] resolved = '%s'\n", resolved);
+		//printf("[DEBUG] resolved = '%s'\n", resolved);
 		request_error(fd, uri, "404", "Not Found", "file not found");
 		return -1;
 	}
-	printf("[DEBUG] Resolved absolute path: '%s'\n", resolved);
+	//printf("[DEBUG] Resolved absolute path: '%s'\n", resolved);
 
 	// Ensure file is inside root_dir
 	if (strncmp(resolved, abs_root, strlen(abs_root)) != 0) {
-		printf("[DEBUG] Access outside base directory: '%s'\n", resolved);
+		//printf("[DEBUG] Access outside base directory: '%s'\n", resolved);
 		request_error(fd, uri, "403", "Forbidden", "access outside base directory");
 		return -1;
 	}
@@ -221,7 +221,7 @@ int request_get_info(int fd, request_info_t *request_info_out){ //, const char *
 		return -1;
     }
 
-	printf("[DEBUG] File to serve (stored in request_info): '%s'\n", resolved);
+	//printf("[DEBUG] File to serve (stored in request_info): '%s'\n", resolved);
 	// Fill request_info struct
     request_info_out->fd = fd;
     request_info_out->sbuf = sbuf;
@@ -239,6 +239,7 @@ int request_get_info(int fd, request_info_t *request_info_out){ //, const char *
 
 // handle a request
 void request_handle(request_info_t *r) { // int fd
+	printf("[DEBUG] Worker handling: %s (size=%ld)\n", r->filename, r->sbuf.st_size);
     if (r->is_static) {
 		if (!(S_ISREG(r->sbuf.st_mode)) || !(S_IRUSR & r->sbuf.st_mode)) {
 	    	request_error(r->fd, r->filename, "403", "Forbidden", "server could not read this file");
