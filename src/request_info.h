@@ -5,7 +5,6 @@
 	typedef struct {
 		int fd;
 		struct stat sbuf;
-		//int file_size;
 		int is_static;
 		char method[MAXBUF];
 		char uri[MAXBUF];

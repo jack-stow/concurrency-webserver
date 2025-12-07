@@ -55,6 +55,17 @@ void request_read_headers(int fd) {
 // Return 1 if static, 0 if dynamic content
 // Calculates filename (and cgiargs, for dynamic) from uri
 //
+//For static requests:
+// - Clears cgiargs
+// - Converts the URI into a local filename (stripping a leading '/' if present).
+// - If the URI ends with '/', appends "index.html" to serve a default page.
+//
+// For Dynamic requests (URIs containing "cgi"):
+// - Splits the URI at the '?' if present, storing everything after it in cgiargs.
+// - Removes the query portion form the URI so the remaining part becomes the filename.
+// - Strips a leading '/' from the filename if needed.
+//
+// The computed filename is placed in 'filename', and any query arguments go in 'cgiargs'.
 int request_parse_uri(char *uri, char *filename, char *cgiargs) {
     char *ptr;
 
@@ -153,8 +164,21 @@ void request_serve_static(int fd, char *filename, int filesize) {
     munmap_or_die(srcp, filesize);
 }
 
-// prepare request for handling
-int request_get_info(int fd, request_info_t *request_info_out){ //, const char *root_dir){
+// Parses the incoming HTTP request and fills a request_info_t struct for later
+// handling. Returns 0 on success or -1 if the request is invalid.
+//
+// Steps performed:
+// 1. Read the request line and extract method, URI, and version. Only GET is allowed.
+// 2. Reject attempts to use parent-directory traversal ("..").
+// 3. Read and discard remaining headers.
+// 4. Use request_parse_uri() to determine whether the request is static or CGI,
+//    and to compute the target filename and any query arguments.
+// 5. Resolve the requested file against the server's current working directory,
+//    canonicalizing it with realpath().
+// 6. Ensure the resolved path stays in the server's root directory, blocking attempts to escape the tree
+// 7. stat() the resolved file and report errors if it does not exist.
+// 8. Populate the output request_info_t structure with all parsed and resolved data.
+int request_get_info(int fd, request_info_t *request_info_out){
 	int is_static;
     struct stat sbuf;
     char buf[MAXBUF], method[MAXBUF], uri[MAXBUF], version[MAXBUF];
@@ -237,7 +261,18 @@ int request_get_info(int fd, request_info_t *request_info_out){ //, const char *
 	return 0;
 }
 
-// handle a request
+// Processes a prepared request described by request_info_t. Chooses between
+// serving static files or executing a CGI program based on is_static.
+//
+// For static content:
+//  - Ensures the file exists, is a regular file, and is readable
+//  - Sends it using request_serve_static().
+//
+// For dynamic content (CGI):
+//  - Ensures the file exists, is a regular file, and is executable.
+//  - Runs it using request_serve_dynamic(), passing any CGI arguments.
+//
+// Any access or permission issue results in an appropriate HTTP error response
 void request_handle(request_info_t *r) { // int fd
 	printf("[DEBUG] Worker handling: %s (size=%ld)\n", r->filename, r->sbuf.st_size);
     if (r->is_static) {

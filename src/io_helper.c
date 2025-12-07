@@ -1,5 +1,6 @@
 #include "io_helper.h"
 
+
 ssize_t readline(int fd, void *buf, size_t maxlen) {
     char c;
     char *bufp = buf;
@@ -50,8 +51,8 @@ int open_listen_fd(int port) {
     // Create a socket descriptor
     int listen_fd;
     if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-	fprintf(stderr, "socket() failed\n");
-	return -1;
+		fprintf(stderr, "socket() failed\n");
+		return -1;
     }
 
     // Eliminates "Address already in use" error from bind

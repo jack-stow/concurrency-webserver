@@ -7,15 +7,16 @@
 
 char default_root[] = ".";
 
-//int *buffer;
 int buffer_size;
 
+// Worker process
 void *worker(void *arg) {
 	while (1) {
-		// get a connection from buffer
+		// get a connection from buffer. this is threadsafe.
 		request_info_t req = buffer_get();
 		// handle HTTP request
 		request_handle(&req);
+		// close the connection
 		close_or_die(req.fd);
 	}
 }
@@ -32,29 +33,30 @@ int main(int argc, char *argv[]) {
     int buffers = 1;
     char *schedalg = "FIFO";
 
+	// Process command-line options until getopt returns -1 (no more options)
     while ((c = getopt(argc, argv, "d:p:t:b:s:")) != -1)
 		switch (c) {
-			case 'd':
+			case 'd': // directory
 	    		root_dir = optarg;
 	    		break;
-			case 'p':
+			case 'p': // port
 	    		port = atoi(optarg);
 	    		break;
-			case 't':
+			case 't': // threads
 				threads = atoi(optarg);
 				if (buffers <= 0){
 					fprintf(stderr, "Error: Invalid number of threads '%s'. threads must be a positive integer\n", optarg);
 					fprintf(stderr, "usage: wserver [-d baseddir] [-p port] [-t threads] [-b buffersize] [-s policy]\n");
 				}
 				break;
-			case 'b':
+			case 'b': // buffer size
 				buffers = atoi(optarg);
 				if (buffers <= 0){
 					fprintf(stderr, "Error: Invalid buffer size '%s'. buffer must be a positive integer\n", optarg);
 					fprintf(stderr, "usage: wserver [-d baseddir] [-p port] [-t threads] [-b buffersize] [-s policy]\n");
 				}
 				break;
-			case 's':
+			case 's': // scheduling algorithm
 				if (strcmp(optarg, "FIFO") == 0 || strcmp(optarg, "SFF") == 0){
 					schedalg = optarg;
 				} else {
@@ -64,18 +66,17 @@ int main(int argc, char *argv[]) {
 				}
 				schedalg = optarg;
 				break;
-			default:
+			default: // errors
 	    		fprintf(stderr, "usage: wserver [-d baseddir] [-p port] [-t threads] [-b buffersize] [-s policy]\n");
 	    		exit(1);
 		}
-	printf("num threads: %d", threads);
-	printf("buffer size: %d", buffers);
-	printf("scheduling algorithm: %s", schedalg);
+	//printf("num threads: %d", threads);
+	//printf("buffer size: %d", buffers);
+	//printf("scheduling algorithm: %s", schedalg);
 
 	buffer_size = buffers;
 	// set the SSF flag
 	int sff_flag = strcmp(schedalg, "SFF") == 0;
-	//buffer = malloc(sizeof(int) * buffer_size);
 
     // run out of this directory
     chdir_or_die(root_dir);
@@ -98,17 +99,17 @@ int main(int argc, char *argv[]) {
 		printf("Accepted connection %d\n", conn_fd);
 
 		request_info_t req;
+		// get info about the user's request
 		int success = request_get_info(conn_fd, &req);//, root_dir);
 		// if successful, handle request.
 		if (success == 0) {
-			//printf("File size: %d\n", req.sbuf.st_size);
-			//request_handle(&req);
+			// put the request data in the bounded buffer. ssf_flag determines whether or not the buffer will be sorted
 			buffer_put(req, sff_flag);
 		}
 		else {
+			// close connection
 			close_or_die(conn_fd);
 		}
-		//close_or_die(conn_fd);
     }
     return 0;
 }
