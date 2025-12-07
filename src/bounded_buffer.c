@@ -3,16 +3,8 @@
 #include "bounded_buffer.h"
 #include "common.h"
 
-typedef struct {
-	int fd; // the socket descriptor
-	char filename[MAXBUF]; // path to the requested file
-	int file_size; // the result of stat(filename)
-	int is_static; // whether this is a static file or CGI
-	char cgiargs[MAXBUF];
-} request_t;
-
 // circular buffer of requests
-static request_t *buf;
+static request_info_t *buf;
 static int buf_size;
 // where the next producer writes
 static int fill = 0;
@@ -31,20 +23,34 @@ static pthread_cond_t full = PTHREAD_COND_INITIALIZER;
 
 void buffer_init(int size){
 	buf_size = size;
-	buf = malloc(sizeof(request_t) * size);
+	buf = malloc(sizeof(request_info_t) * size);
 	fill = use = count = 0;
 }
 
 // producer. only called in the master thread.
-void buffer_put(int fd, int file_size){
+void buffer_put(request_info_t item, int sff_flag){
 	pthread_mutex_lock(&lock);
 
 	while (count == buf_size){
 		pthread_cond_wait(&empty, &lock);
 	}
 
-	buf[fill].fd = fd;
-	buf[fill].file_size = file_size;
+	buf[fill] = item;
+
+	if (sff_flag){
+		int j = fill;
+		while (j != use) {
+			int prev = (j - 1 + buf_size) % buf_size;
+			if (buf[j].sbuf.st_size >= buf[prev].sbuf.st_size)
+				break;
+
+			request_info_t temp = buf[j];
+			buf[j] = buf[prev];
+			buf[prev] = temp;
+
+			j = prev;
+		}
+	}
 
 	fill = (fill + 1) % buf_size;
 	count++;
@@ -54,17 +60,14 @@ void buffer_put(int fd, int file_size){
 }
 
 // consumer. called in worker threads
-int buffer_get(int *file_size_out){
+request_info_t buffer_get(){
 	pthread_mutex_lock(&lock);
 
 	while (count == 0) {
 		pthread_cond_wait(&full, &lock);
 	}
 
-	int fd = buf[use].fd;
-	if (file_size_out) {
-		*file_size_out = buf[use].file_size;
-	}
+	request_info_t req = buf[use];
 
 	use = (use + 1) % buf_size;
 	count--;
@@ -72,5 +75,5 @@ int buffer_get(int *file_size_out){
 	pthread_cond_signal(&empty);
 	pthread_mutex_unlock(&lock);
 
-	return fd;
+	return req;
 }

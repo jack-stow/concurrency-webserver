@@ -3,20 +3,20 @@
 #include "io_helper.h"
 #include "bounded_buffer.h"
 #include "request_info.h"
+#include <pthread.h>
 
 char default_root[] = ".";
 
-int *buffer;
+//int *buffer;
 int buffer_size;
 
 void *worker(void *arg) {
 	while (1) {
-		int file_size;
 		// get a connection from buffer
-		int conn_fd = buffer_get(&file_size);
+		request_info_t req = buffer_get();
 		// handle HTTP request
-		request_handle(conn_fd);
-		close_or_die(conn_fd);
+		request_handle(&req);
+		close_or_die(req.fd);
 	}
 }
 
@@ -73,7 +73,9 @@ int main(int argc, char *argv[]) {
 	printf("scheduling algorithm: %s", schedalg);
 
 	buffer_size = buffers;
-	buffer = malloc(sizeof(int) * buffer_size);
+	// set the SSF flag
+	int sff_flag = strcmp(schedalg, "SFF") == 0;
+	//buffer = malloc(sizeof(int) * buffer_size);
 
     // run out of this directory
     chdir_or_die(root_dir);
@@ -95,15 +97,18 @@ int main(int argc, char *argv[]) {
 		int conn_fd = accept_or_die(listen_fd, (sockaddr_t *) &client_addr, (socklen_t *) &client_len);
 		printf("Accepted connection %d\n", conn_fd);
 
-		struct stat sbuf;
 		request_info_t req;
-		int success = request_get_info(conn_fd, &req);
+		int success = request_get_info(conn_fd, &req, root_dir);
 		// if successful, handle request.
 		if (success == 0) {
-			printf("File size: %d\n", req.sbuf.st_size);
-			request_handle(&req);
+			//printf("File size: %d\n", req.sbuf.st_size);
+			//request_handle(&req);
+			buffer_put(req, sff_flag);
 		}
-		close_or_die(conn_fd);
+		else {
+			close_or_die(conn_fd);
+		}
+		//close_or_die(conn_fd);
     }
     return 0;
 }

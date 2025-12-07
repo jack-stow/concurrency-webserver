@@ -3,6 +3,6 @@
 void request_handle(request_info_t *r);//(int fd);
 
 // returns 0 on success, -1 on failure.
-int request_get_info(int fd, request_info_t *request_info_out);
+int request_get_info(int fd, request_info_t *request_info_out, const char *root_dir);
 
 #endif // __REQUEST_H__

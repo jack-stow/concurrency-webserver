@@ -46,7 +46,7 @@ void request_read_headers(int fd) {
 
     readline_or_die(fd, buf, MAXBUF);
     while (strcmp(buf, "\r\n")) {
-	readline_or_die(fd, buf, MAXBUF);
+		readline_or_die(fd, buf, MAXBUF);
     }
     return;
 }
@@ -59,24 +59,35 @@ int request_parse_uri(char *uri, char *filename, char *cgiargs) {
     char *ptr;
 
     if (!strstr(uri, "cgi")) {
-	// static
-	strcpy(cgiargs, "");
-	sprintf(filename, ".%s", uri);
-	if (uri[strlen(uri)-1] == '/') {
-	    strcat(filename, "index.html");
-	}
-	return 1;
+		// static
+		strcpy(cgiargs, "");
+		//sprintf(filename, ".%s", uri);
+		if (uri[0] == '/') {
+	    	sprintf(filename, "%s", uri + 1);
+		}
+		else{
+			sprintf(filename, "%s", uri);
+		}
+		if (uri[strlen(uri) - 1] == '/'){
+			strcat(filename, "index.html");
+		}
+		return 1;
     } else {
-	// dynamic
-	ptr = index(uri, '?');
-	if (ptr) {
-	    strcpy(cgiargs, ptr+1);
-	    *ptr = '\0';
-	} else {
-	    strcpy(cgiargs, "");
-	}
-	sprintf(filename, ".%s", uri);
-	return 0;
+		// dynamic
+		ptr = index(uri, '?');
+		if (ptr) {
+	    	strcpy(cgiargs, ptr+1);
+	    	*ptr = '\0';
+		} else {
+	    	strcpy(cgiargs, "");
+		}
+		if (uri[0] == '/'){
+			sprintf(filename, "%s", uri + 1);
+		}
+		else{
+			sprintf(filename, "%s", uri);
+		}
+		return 0;
     }
 }
 
@@ -85,13 +96,13 @@ int request_parse_uri(char *uri, char *filename, char *cgiargs) {
 //
 void request_get_filetype(char *filename, char *filetype) {
     if (strstr(filename, ".html"))
-	strcpy(filetype, "text/html");
+		strcpy(filetype, "text/html");
     else if (strstr(filename, ".gif"))
-	strcpy(filetype, "image/gif");
+		strcpy(filetype, "image/gif");
     else if (strstr(filename, ".jpg"))
-	strcpy(filetype, "image/jpeg");
+		strcpy(filetype, "image/jpeg");
     else
-	strcpy(filetype, "text/plain");
+		strcpy(filetype, "text/plain");
 }
 
 void request_serve_dynamic(int fd, char *filename, char *cgiargs) {
@@ -106,12 +117,12 @@ void request_serve_dynamic(int fd, char *filename, char *cgiargs) {
     write_or_die(fd, buf, strlen(buf));
 
 	if (fork_or_die() == 0) {                        // child
-	setenv_or_die("QUERY_STRING", cgiargs, 1);   // args to cgi go here
-	dup2_or_die(fd, STDOUT_FILENO);              // make cgi writes go to socket (not screen)
-	extern char **environ;                       // defined by libc
-	execve_or_die(filename, argv, environ);
+		setenv_or_die("QUERY_STRING", cgiargs, 1);   // args to cgi go here
+		dup2_or_die(fd, STDOUT_FILENO);              // make cgi writes go to socket (not screen)
+		extern char **environ;                       // defined by libc
+		execve_or_die(filename, argv, environ);
     } else {
-	wait_or_die(NULL);
+		wait_or_die(NULL);
     }
 }
 
@@ -143,7 +154,7 @@ void request_serve_static(int fd, char *filename, int filesize) {
 }
 
 // prepare request for handling
-int request_get_info(int fd, request_info_t *request_info_out){
+int request_get_info(int fd, request_info_t *request_info_out, const char *root_dir){
 	int is_static;
     struct stat sbuf;
     char buf[MAXBUF], method[MAXBUF], uri[MAXBUF], version[MAXBUF];
@@ -153,26 +164,85 @@ int request_get_info(int fd, request_info_t *request_info_out){
     sscanf(buf, "%s %s %s", method, uri, version);
     printf("method:%s uri:%s version:%s\n", method, uri, version);
 
+	// Only GET requests are supported
     if (strcasecmp(method, "GET")) {
 		request_error(fd, method, "501", "Not Implemented", "server does not implement this method");
 		return -1;
     }
+
+	// ensure the user doesn't attempt to traverse up the file tree
+	if (strstr(uri, "..") != NULL) {
+		request_error(fd, uri, "403", "Forbidden", "parent directory references are not allowed");
+		return -1;
+	}
+
+	// read remaining headers
     request_read_headers(fd);
 
+	// determine filename and CGI args
     is_static = request_parse_uri(uri, filename, cgiargs);
-    if (stat(filename, &sbuf) < 0) {
-		request_error(fd, filename, "404", "Not found", "server could not find this file");
+
+    printf("[DEBUG] URI from client: '%s'\n", uri);
+    printf("[DEBUG] Filename after request_parse_uri: '%s'\n", filename);
+
+	// Construct full path and canonicalize
+	char fullpath[MAXBUF];
+	printf("[DEBUG] filename used in fullpath: '%s'\n", filename);
+
+	char cwd[MAXBUF];
+	getcwd(cwd, MAXBUF);
+	printf("[DEBUG] cwd='%s', root_dir='%s'\n", cwd, root_dir);
+
+	//if (strncmp(filename, "./", 2) == 0)
+	//	memmove(filename, filename + 2, strlen(filename + 2) + 1);
+
+	snprintf(fullpath, MAXBUF, "%s/%s", root_dir, filename);
+	printf("[DEBUG] Fullpath (root_dir + filename): '%s'\n", fullpath);
+
+	char resolved[MAXBUF];
+	if (realpath(fullpath, resolved) == NULL) {
+		printf("[DEBUG] resolved = '%s'\n", resolved);
+		request_error(fd, uri, "404", "Not Found", "file not found");
+		return -1;
+	}
+
+	printf("[DEBUG] Resolved absolute path: '%s'\n", resolved);
+
+	// Make sure file is inside root_dir
+	char abs_root[MAXBUF];
+	if (realpath(root_dir, abs_root) == NULL) {
+		printf("[DEBUG] abs_root = '%s'\n", abs_root);
+		fprintf(stderr, "Error: could not resolve root_dir\n");
+		return -1;
+	}
+
+	printf("[DEBUG] Absolute root_dir: '%s'\n", abs_root);
+
+	if (strncmp(resolved, abs_root, strlen(abs_root)) != 0) {
+		printf("[DEBUG] Access outside base directory: '%s'\n", resolved);
+		request_error(fd, uri, "403", "Forbidden", "access outside base directory");
+		return -1;
+	}
+
+	// stat the resolved file
+    if (stat(resolved, &sbuf) < 0) {
+		request_error(fd, resolved, "404", "Not found", "server could not find this file");
 		return -1;
     }
 
+	printf("[DEBUG] File to serve (stored in request_info): '%s'\n", resolved);
+	// Fill request_info struct
     request_info_out->fd = fd;
     request_info_out->sbuf = sbuf;
     request_info_out->is_static = is_static;
 	strcpy(request_info_out->method, method);
 	strcpy(request_info_out->uri, uri);
 	strcpy(request_info_out->version, version);
-	strcpy(request_info_out->filename, filename);
+	strcpy(request_info_out->filename, resolved);
 	strcpy(request_info_out->cgiargs, cgiargs);
+
+    printf("Looking for file: %s\n", filename);
+    printf("resolved filename: %s\n", resolved);
 	return 0;
 }
 
