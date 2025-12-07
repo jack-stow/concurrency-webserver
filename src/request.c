@@ -154,7 +154,7 @@ void request_serve_static(int fd, char *filename, int filesize) {
 }
 
 // prepare request for handling
-int request_get_info(int fd, request_info_t *request_info_out, const char *root_dir){
+int request_get_info(int fd, request_info_t *request_info_out){ //, const char *root_dir){
 	int is_static;
     struct stat sbuf;
     char buf[MAXBUF], method[MAXBUF], uri[MAXBUF], version[MAXBUF];
@@ -181,43 +181,34 @@ int request_get_info(int fd, request_info_t *request_info_out, const char *root_
 
 	// determine filename and CGI args
     is_static = request_parse_uri(uri, filename, cgiargs);
-
     printf("[DEBUG] URI from client: '%s'\n", uri);
     printf("[DEBUG] Filename after request_parse_uri: '%s'\n", filename);
 
+	// Make sure file is inside root_dir
+	char abs_root[MAXBUF];
+	if (getcwd(abs_root, MAXBUF) == NULL) {
+		printf("[DEBUG] cwd - abs_root = '%s'\n", abs_root);
+		perror("getcwd");
+		return -1;
+	}
+	printf("[DEBUG] Absolute abs_root: '%s'\n", abs_root);
+
 	// Construct full path and canonicalize
 	char fullpath[MAXBUF];
-	printf("[DEBUG] filename used in fullpath: '%s'\n", filename);
+	snprintf(fullpath, MAXBUF, "%s/%s", abs_root, filename);
+	printf("[DEBUG] **Fullpath (root_dir + filename): '%s'\n", fullpath);
 
-	char cwd[MAXBUF];
-	getcwd(cwd, MAXBUF);
-	printf("[DEBUG] cwd='%s', root_dir='%s'\n", cwd, root_dir);
-
-	//if (strncmp(filename, "./", 2) == 0)
-	//	memmove(filename, filename + 2, strlen(filename + 2) + 1);
-
-	snprintf(fullpath, MAXBUF, "%s/%s", root_dir, filename);
-	printf("[DEBUG] Fullpath (root_dir + filename): '%s'\n", fullpath);
-
+	// Canonicalize requested file
 	char resolved[MAXBUF];
 	if (realpath(fullpath, resolved) == NULL) {
+		perror("realpath");
 		printf("[DEBUG] resolved = '%s'\n", resolved);
 		request_error(fd, uri, "404", "Not Found", "file not found");
 		return -1;
 	}
-
 	printf("[DEBUG] Resolved absolute path: '%s'\n", resolved);
 
-	// Make sure file is inside root_dir
-	char abs_root[MAXBUF];
-	if (realpath(root_dir, abs_root) == NULL) {
-		printf("[DEBUG] abs_root = '%s'\n", abs_root);
-		fprintf(stderr, "Error: could not resolve root_dir\n");
-		return -1;
-	}
-
-	printf("[DEBUG] Absolute root_dir: '%s'\n", abs_root);
-
+	// Ensure file is inside root_dir
 	if (strncmp(resolved, abs_root, strlen(abs_root)) != 0) {
 		printf("[DEBUG] Access outside base directory: '%s'\n", resolved);
 		request_error(fd, uri, "403", "Forbidden", "access outside base directory");

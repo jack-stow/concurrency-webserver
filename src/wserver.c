@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
 		printf("Accepted connection %d\n", conn_fd);
 
 		request_info_t req;
-		int success = request_get_info(conn_fd, &req, root_dir);
+		int success = request_get_info(conn_fd, &req);//, root_dir);
 		// if successful, handle request.
 		if (success == 0) {
 			//printf("File size: %d\n", req.sbuf.st_size);
