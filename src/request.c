@@ -186,7 +186,7 @@ int request_get_info(int fd, request_info_t *request_info_out){
 
     readline_or_die(fd, buf, MAXBUF);
     sscanf(buf, "%s %s %s", method, uri, version);
-    printf("method:%s uri:%s version:%s\n", method, uri, version);
+    printf("method: %s\nuri: %s\nversion: %s\n", method, uri, version);
 
 	// Only GET requests are supported
     if (strcasecmp(method, "GET")) {
@@ -274,7 +274,7 @@ int request_get_info(int fd, request_info_t *request_info_out){
 //
 // Any access or permission issue results in an appropriate HTTP error response
 void request_handle(request_info_t *r) { // int fd
-	printf("[DEBUG] Worker handling: %s (size=%ld)\n", r->filename, r->sbuf.st_size);
+	printf("[WORKER] handling request: %d, file: %s (size=%ld)\n", r->fd, r->filename, r->sbuf.st_size);
     if (r->is_static) {
 		if (!(S_ISREG(r->sbuf.st_mode)) || !(S_IRUSR & r->sbuf.st_mode)) {
 	    	request_error(r->fd, r->filename, "403", "Forbidden", "server could not read this file");
