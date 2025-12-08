@@ -5,7 +5,7 @@
 #include "request_info.h"
 #include <pthread.h>
 
-char default_root[] = ".";
+char default_root[] = "www";
 
 int buffer_size;
 
