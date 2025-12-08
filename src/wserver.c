@@ -96,6 +96,7 @@ int main(int argc, char *argv[]) {
 		struct sockaddr_in client_addr;
 		int client_len = sizeof(client_addr);
 		int conn_fd = accept_or_die(listen_fd, (sockaddr_t *) &client_addr, (socklen_t *) &client_len);
+		printf("======================\n");
 		printf("Accepted connection %d\n", conn_fd);
 
 		request_info_t req;
