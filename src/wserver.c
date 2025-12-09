@@ -14,10 +14,12 @@ void *worker(void *arg) {
 	while (1) {
 		// get a connection from buffer. this is threadsafe.
 		request_info_t req = buffer_get();
+		printf("[WORKER] Starting request: %d, file: %s (size=%ld), cgiargs: %s\n", req.fd, req.filename, req.sbuf.st_size, req.cgiargs);
 		// handle HTTP request
 		request_handle(&req);
 		// close the connection
 		close_or_die(req.fd);
+		printf("[WORKER] Complete request: %d, file: %s (size=%ld), cgiargs: %s\n", req.fd, req.filename, req.sbuf.st_size, req.cgiargs);
 	}
 }
 
@@ -104,8 +106,10 @@ int main(int argc, char *argv[]) {
 		int success = request_get_info(conn_fd, &req);//, root_dir);
 		// if successful, handle request.
 		if (success == 0) {
+			printf("\tmethod: %s\n\turi: %s\n\tversion: %s\n", req.method, req.uri, req.version);
 			// put the request data in the bounded buffer. ssf_flag determines whether or not the buffer will be sorted
 			buffer_put(req, sff_flag);
+			printf("Request %d added to buffer\n", conn_fd);
 		}
 		else {
 			// close connection

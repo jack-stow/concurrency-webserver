@@ -186,7 +186,7 @@ int request_get_info(int fd, request_info_t *request_info_out){
 
     readline_or_die(fd, buf, MAXBUF);
     sscanf(buf, "%s %s %s", method, uri, version);
-    printf("method: %s\nuri: %s\nversion: %s\n", method, uri, version);
+    printf("\tmethod: %s\n\turi: %s\n\tversion: %s\n", method, uri, version);
 
 	// Only GET requests are supported
     if (strcasecmp(method, "GET")) {
@@ -256,8 +256,8 @@ int request_get_info(int fd, request_info_t *request_info_out){
 	strcpy(request_info_out->filename, resolved);
 	strcpy(request_info_out->cgiargs, cgiargs);
 
-    printf("Looking for file: %s\n", filename);
-    printf("resolved filename: %s\n", resolved);
+    //printf("\tLooking for file: %s\n", filename);
+    //printf("\tresolved filename: %s\n", resolved);
 	return 0;
 }
 
@@ -274,7 +274,7 @@ int request_get_info(int fd, request_info_t *request_info_out){
 //
 // Any access or permission issue results in an appropriate HTTP error response
 void request_handle(request_info_t *r) { // int fd
-	printf("[WORKER] handling request: %d, file: %s (size=%ld)\n", r->fd, r->filename, r->sbuf.st_size);
+	//printf("[WORKER] handling request: %d, file: %s (size=%ld), cgiargs: %s\n", r->fd, r->filename, r->sbuf.st_size, r->cgiargs);
     if (r->is_static) {
 		if (!(S_ISREG(r->sbuf.st_mode)) || !(S_IRUSR & r->sbuf.st_mode)) {
 	    	request_error(r->fd, r->filename, "403", "Forbidden", "server could not read this file");
