@@ -62,14 +62,31 @@ Examples:
 
 ## More Rigorous Testing
 
-### Test 1: FIFO
-Open two shell windows. In the first one run the web server on port 8000, out of the www folder, with 8 threads, a buffer size of 8, and the FIFO scheduling algorithm
+First set up data.
+navigate to the www directory and run
 
 ```sh
-./wserver -d www -p 8000 -t 8 -b 8 -s FIFO
+echo "small" > small.txt
+head -c 500000 /dev/zero > medium.txt  # 500 KB
+head -c 2000000 /dev/zero > large.txt  # 2 MB
 ```
+This will create 3 text files in 3 sizes, small, medium, and large.
+These files will allow us to test that SFF scheduling chooses the smallest file first, and that FIFO only cares about the order in which requests are received.
 
+
+### Test 1: FIFO
+Open three shell windows. In the first one run the web server on port 8000, out of the www folder, with 8 threads, a buffer size of 8, and the FIFO scheduling algorithm
+
+```sh
+./wserver -d www -p 8000 -t 4 -b 8 -s FIFO
+```
 In the second shell window, run 
+```sh
+./wclient localhost 8000 spin.cgi?1 & ./wclient localhost 8000 spin.cgi?2 & ./wclient localhost 8000 spin.cgi?3 & ./wclient localhost 8000 spin.cgi?4 & ./wclient localhost 8000 spin.cgi?5 & 
+```
+This will cause all 4 worker threads to spin for 20 seconds, giving you time to fill the buffer with file requests, before the workers can remove them.
+
+In the third shell window, run 
 ```sh
 ./wclient localhost 8000 spin.cgi?1 & ./wclient localhost 8000 spin.cgi?2 & ./wclient localhost 8000 spin.cgi?3 & ./wclient localhost 8000 spin.cgi?4 & ./wclient localhost 8000 spin.cgi?5 & 
 ```
@@ -81,18 +98,6 @@ Please Note:
 - The fd is printed in the logs as a request number. However, if a worker handles a request before all the incoming requests are ingested, it'll free up the fd for the next request it receives. Pay very close attention to which request is which when reading the logs, as you may be lead to believe the requests are being handled out of order or being executed multiple times.
 
 ### Test 2: SFF
-3 terminal windows will be needed for this test.
-
-First set up data.
-navigate to the www directory and run
-
-```sh
-echo "small" > small.txt
-head -c 500000 /dev/zero > medium.txt  # 500 KB
-head -c 2000000 /dev/zero > large.txt  # 2 MB
-```
-This will create 3 text files in 3 sizes, small, medium, and large.
-These files will allow us to test that SFF scheduling chooses the smallest file first.
 
 In the first terminal window, run the server with 4 threads using SFF
 ```sh
