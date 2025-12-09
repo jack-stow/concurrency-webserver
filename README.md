@@ -7,7 +7,7 @@
     ```
 1. Build the server, client, and CGI programs using the provided Makefile:
    ```sh
-    cd src
+    make
     ```
 This will produce:
 - **wserver**: The webserver
